@@ -41,13 +41,20 @@ function setInitialSpeed() {
     }
 }
 
+// Улучшенный перехват клика
 document.addEventListener('click', (e) => {
+    // Ищем ссылку, даже если кликнули по картинке или заголовку внутри неё
     const link = e.target.closest('a[href*="watch?v="]');
+    
     if (link && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        // Не трогаем видео в плейлистах (боковая панель)
         if (link.closest('ytd-playlist-panel-video-renderer')) return; 
+
         e.preventDefault();
-        e.stopImmediatePropagation();
+        e.stopImmediatePropagation(); // Останавливаем стандартные скрипты YouTube
+
         const videoId = new URL(link.href, window.location.origin).searchParams.get('v');
+        
         chrome.storage.local.get(['openedVideos'], (res) => {
             let list = Array.isArray(res.openedVideos) ? res.openedVideos : [];
             if (videoId && !list.includes(videoId)) {
@@ -55,9 +62,12 @@ document.addEventListener('click', (e) => {
                 chrome.storage.local.set({ openedVideos: list.slice(-1000) });
             }
         });
+
         chrome.runtime.sendMessage({ action: "openVideo", url: link.href });
     }
-}, true);
+}, true); // true — фаза перехвата (самый высокий приоритет)
+
+
 
 chrome.runtime.onMessage.addListener((msg) => {
     if (msg.action === "forceUpdateSpeed") {
