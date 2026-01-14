@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "YouTubeManager",
+  "version": "1.8",
+  "description": "Авто-группировка, фоновое открытие и установка начальной скорости.",
+  "permissions": ["tabs", "tabGroups", "scripting", "storage"],
+  "host_permissions": ["*://www.youtube.com/*"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
