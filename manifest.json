@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTubeManager",
-  "version": "1.8",
+  "version": "2.0",
   "description": "Авто-группировка, фоновое открытие и установка начальной скорости.",
   "permissions": ["tabs", "tabGroups", "scripting", "storage"],
   "host_permissions": ["*://www.youtube.com/*"],
