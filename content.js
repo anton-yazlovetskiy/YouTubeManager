@@ -50,7 +50,6 @@ function safeExecute(contextName, fn) {
 let userInteractedRecently = false;
 let enforcementActive = false;
 
-// Слушаем события, чтобы отличать пользователя от авто-сброса
 ['mousedown', 'touchstart', 'click'].forEach(evt => {
     window.addEventListener(evt, () => {
         userInteractedRecently = true;
@@ -58,32 +57,26 @@ let enforcementActive = false;
     }, true);
 });
 
-// ПЕРЕХВАТ КЛАВИШ (Shift + < / >) для ручного управления скоростью
 window.addEventListener('keydown', (e) => {
-    // Коды клавиш: 190 -> '.' (>), 188 -> ',' (<)
-    // Shift + . = Увеличить скорость
-    // Shift + , = Уменьшить скорость
     if (e.shiftKey && (e.keyCode === 190 || e.keyCode === 188)) {
         const video = document.querySelector('video');
         if (!video) return;
 
         e.preventDefault();
-        e.stopImmediatePropagation(); // Блокируем стандартную обработку YouTube
+        e.stopImmediatePropagation();
 
         const delta = (e.keyCode === 190) ? 0.25 : -0.25;
         let currentRate = video.playbackRate;
         
-        // Округляем до 0.25, чтобы избежать 1.1500001
         let newRate = Math.round((currentRate + delta) * 4) / 4;
-        newRate = Math.max(0.25, Math.min(newRate, 3.0)); // YouTube обычно держит до 2x, но мы можем и шире, если плеер позволяет
+        newRate = Math.max(0.25, Math.min(newRate, 3.0));
 
-        // Применяем и сохраняем
-        userInteractedRecently = true; // Ставим флаг, что это мы
+        userInteractedRecently = true;
         video.playbackRate = newRate;
         sessionStorage.setItem('yt-manager-speed-override', newRate);
         showToast(`Скорость: ${newRate.toFixed(2)}x`);
     }
-}, true); // Capture phase! Важно, чтобы перехватить до YouTube
+}, true);
 
 async function getTargetSpeed() {
     return new Promise(resolve => {
@@ -104,7 +97,6 @@ async function enforceSpeed() {
 
     const target = await getTargetSpeed();
     
-    // Если скорость "уплыла" и это не действие пользователя
     if (Math.abs(video.playbackRate - target) > 0.05) {
         if (!userInteractedRecently) {
             enforcementActive = true;
@@ -119,32 +111,19 @@ async function enforceSpeed() {
 let watchedSeconds = 0;
 let likeAttempted = false;
 
-function handleAutoLike(video) {
-    if (video.paused || likeAttempted) return;
-    
-    // Добавляем время (функция вызывается раз в секунду или по update)
-    // Но лучше считать по timeupdate, тут мы используем простую эвристику внутри loop
-}
-
 function processAutoLike() {
     const video = document.querySelector('video');
     if (!video || video.paused) return;
 
-    // Увеличиваем счетчик только если видео играет
-    // (Этот метод вызывается из setInterval раз в секунду, погрешность приемлема)
     watchedSeconds++;
 
     if (watchedSeconds >= 60 && !likeAttempted) {
-        likeAttempted = true; // Пробуем один раз
+        likeAttempted = true;
         tryLikeVideo();
     }
 }
 
 function tryLikeVideo() {
-    // Селекторы кнопки лайка (YouTube часто меняет классы)
-    // Обычно это кнопка внутри #segmented-like-button
-    // Ищем кнопку, у которой есть aria-label "I like this" или похожее
-    
     const likeBtn = document.querySelector(
         '#segmented-like-button button, ytd-toggle-button-renderer[is-icon-button] button#button'
     );
@@ -158,7 +137,6 @@ function tryLikeVideo() {
     }
 }
 
-// Сброс счетчика при смене видео
 function resetAutoLike() {
     watchedSeconds = 0;
     likeAttempted = false;
@@ -170,7 +148,6 @@ function attachVideoListeners() {
     const video = document.querySelector('video');
     if (!video) return;
 
-    // Проверка смены URL (для сброса лайка)
     if (video.dataset.currentSrc !== window.location.href) {
         video.dataset.currentSrc = window.location.href;
         resetAutoLike();
@@ -194,7 +171,7 @@ function attachVideoListeners() {
     });
 }
 
-// --- 5. NEON STYLE & CLICKS ---
+// --- 5. NEON STYLE & CLICKS (UPDATED) ---
 
 const styleId = 'yt-pro-neon-style';
 const styleEl = document.createElement('style');
@@ -210,6 +187,18 @@ styleEl.textContent = `
 `;
 (document.head || document.documentElement).appendChild(styleEl);
 
+// Вспомогательная функция для нормализации URL
+function getNormalizedUrl(href) {
+    try {
+        const url = new URL(href, window.location.origin);
+        const videoId = url.searchParams.get('v');
+        if (!videoId) return null;
+        return `${window.location.origin}/watch?v=${videoId}`;
+    } catch (e) {
+        return null;
+    }
+}
+
 function applyNeon() {
     safeExecute('applyNeon', () => {
         if (!chrome.runtime?.id) return;
@@ -218,9 +207,13 @@ function applyNeon() {
             const getContainer = (el) => el.closest('ytd-rich-grid-media, ytd-compact-video-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer') || el;
             
             document.querySelectorAll('a[href*="watch?v="]').forEach(link => {
-                const id = new URL(link.href, window.location.origin).searchParams.get('v');
-                if (id && opened.includes(id)) {
-                    getContainer(link).classList.add('yt-pro-opened-video');
+                const normalized = getNormalizedUrl(link.href);
+                const container = getContainer(link);
+                if (normalized && opened.includes(normalized)) {
+                    container.classList.add('yt-pro-opened-video');
+                } else {
+                    // Удаляем класс, если ссылка больше не в списке (на случай динамического обновления)
+                    container.classList.remove('yt-pro-opened-video');
                 }
             });
         });
@@ -233,15 +226,16 @@ document.addEventListener('click', (e) => {
         if (link && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
             if (link.closest('ytd-playlist-panel-video-renderer')) return;
 
+            const normalizedUrl = getNormalizedUrl(link.href);
+            if (!normalizedUrl) return;
+
             e.preventDefault();
             e.stopImmediatePropagation();
 
-            const videoId = new URL(link.href, window.location.origin).searchParams.get('v');
-            
             chrome.storage.local.get(['openedVideos'], (res) => {
                 let list = Array.isArray(res.openedVideos) ? res.openedVideos : [];
-                if (videoId && !list.includes(videoId)) {
-                    list.push(videoId);
+                if (!list.includes(normalizedUrl)) {
+                    list.push(normalizedUrl);
                     chrome.storage.local.set({ openedVideos: list.slice(-1000) });
                 }
             });
@@ -295,7 +289,7 @@ setInterval(() => {
     safeExecute('mainLoop', () => {
         attachVideoListeners();
         enforceSpeed();
-        processAutoLike(); // Проверка лайков каждую секунду
+        processAutoLike();
     });
 }, 1000);
 
